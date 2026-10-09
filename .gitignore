@@ -1,0 +1,16 @@
+# Secrets and local env
+.env
+
+# Virtual environments
+.venv/
+
+# Harness run artifacts
+runs/
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info

@@ -104,32 +104,56 @@ docstring and the project notes.
 - **Why:** a run that stops before using every scripted turn is usually a bug
   in the loop or in the test.
 
-## Loop (`src/harness/loop.py`): Planned
+## Loop (`src/harness/loop.py`)
 
 ### Branch on `stop_reason`
 - `end_turn` / `stop_sequence`: stop with `final_answer`.
 - `tool_use`: run the tools and loop again.
 - `max_tokens`: stop with `max_tokens`. **Do not run its tool calls**, because
   the output was cut off and a call may be incomplete.
-- Anything else (`refusal`, `pause_turn`, ...): stop with `unexpected`, keeping
-  the raw reason.
+- Anything else (`refusal`, `pause_turn`, ...), or `tool_use` with no tool
+  calls: stop with `unexpected`, with the reason in `RunResult.detail`.
 
 ### All tool results from one turn go in one user message
 - **Why:** splitting them across messages teaches the model to stop making
-  parallel calls. Failures use `is_error: true`.
+  parallel calls. Failures carry `is_error: true`; successes omit the key.
 
 ### Token budget counts total usage across steps
 - **Chose:** sum `input_tokens + output_tokens` over every step.
 - **Why:** each call resends the full history, so this is the real spend, not
   just the final conversation size.
+- **Chose:** the budget is checked *after* the tools run, and a final answer
+  wins over the budget.
+- **Why:** the history stays well formed (every tool request has its result),
+  and an answer already in hand is not thrown away.
+- **Cost:** tools with side effects still run on the step that exhausts the
+  budget.
 
-### Hitting `max_steps` leaves a dangling `tool_use`
-- **Consequence:** the final assistant message has a tool call with no result,
-  so that run cannot simply be resumed. Resuming belongs to Week 2.
+### `max_steps` and `budget` stops leave a well-formed history
+- **Chose:** the check happens after the step's tool results are appended, so
+  the history ends with a user `tool_result` message.
+- **Why:** the run could be resumed by calling the model again. Resuming
+  itself belongs to Week 2.
+- (An earlier draft of this file said the history would end in a dangling
+  `tool_use`. That is not how the loop was built.)
+
+### `final_text` is `None` unless the model said something final
+- **Chose:** `final_answer`, `max_tokens` and `unexpected` carry the model's
+  text; `max_steps` and `budget` leave it `None`.
+- **Why:** after those two stops the model was mid-task, so its last text is
+  not an answer and must not be mistaken for one.
 
 ### Logging goes through an `on_event` callback
+- **Chose:** four event types: `run_start`, `model_turn`, `tool_result`,
+  `run_end`. Every exit goes through one `finish()` so each run emits exactly
+  one `run_end`.
 - **Why:** the loop stays free of logging code, and Step 4 plugs the
   trajectory logger in without rewriting the loop.
+
+### `registry` comes before `config` in `run_agent`
+- **Chose:** `run_agent(task, client, registry, config=None, on_event=None)`.
+- **Why:** parameters with defaults must come last. `config=None` instead of a
+  `RunConfig()` default avoids a shared default object.
 
 ### Default `max_steps` is 10
 - **Why:** arbitrary. Revisit after the first real runs.

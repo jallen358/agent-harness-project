@@ -34,7 +34,7 @@ class ToolResult:
     is_error: bool = False
 
 class ToolRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
 
     def register(

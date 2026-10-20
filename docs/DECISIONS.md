@@ -158,12 +158,20 @@ docstring and the project notes.
 ### Default `max_steps` is 10
 - **Why:** arbitrary. Revisit after the first real runs.
 
+## Project
+
+### Python 3.12
+- **Chose:** `.python-version` is 3.12 and `requires-python` is `>=3.12`.
+- **Rejected:** staying on 3.9 and writing `Optional[str]` in the pydantic models.
+- **Why:** pydantic evaluates annotations at runtime, and `str | None` raises
+  `TypeError` on 3.9. The tool argument models in the project notes use it
+  (`ProposeMatch.entry_id`).
+- **Side effect:** `uv.lock` shrank because the old lock carried a second,
+  older resolution for Python 3.9. No package moved to a version that 3.12 was
+  not already using (pytest 9.1.1, pydantic 2.14.0, anthropic 1.12.1).
+
 ## Open
 
-- **Python version.** `.python-version` and `requires-python` say 3.9. Pydantic
-  fails on `str | None` there (`TypeError: unsupported operand type(s) for |`),
-  and the notes' `ProposeMatch.entry_id: str | None` needs it. Recommended:
-  bump to 3.12. Alternative: `Optional[str]` throughout.
 - **Thinking blocks.** Newer models may return `thinking` blocks by default,
   and `turn_from_response` would raise on them. Options: ignore them, or turn
   thinking off in the request. Unconfirmed until the first real run.

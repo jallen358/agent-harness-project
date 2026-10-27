@@ -62,7 +62,19 @@ def run_agent(
         stop_reason: StopReason, final_text: str | None = None, detail: str | None = None
     ) -> RunResult:
         # Every exit goes through here so each run ends with exactly one run_end event.
-        emit({"type": "run_end", "stop_reason": stop_reason, "steps": steps, "detail": detail})
+        emit(
+            {
+                "type": "run_end",
+                "stop_reason": stop_reason,
+                "steps": steps,
+                "detail": detail,
+                "final_text": final_text,
+                "usage": {
+                    "input_tokens": total_usage.input_tokens,
+                    "output_tokens": total_usage.output_tokens,
+                },
+            }
+        )
         return RunResult(
             stop_reason=stop_reason,
             messages=messages,
@@ -72,7 +84,18 @@ def run_agent(
             detail=detail,
         )
 
-    emit({"type": "run_start", "task": task})
+    # Record the setup first: a bad run can't be explained without knowing which tools
+    # and limits were in force.
+    emit(
+        {
+            "type": "run_start",
+            "task": task,
+            "system_prompt": config.system_prompt,
+            "tool_names": registry.names(),
+            "max_steps": config.max_steps,
+            "max_total_tokens": config.max_total_tokens,
+        }
+    )
 
     # Each pass through this loop is one step: one model call, plus any tools it asked for.
     for step in range(1, config.max_steps + 1):

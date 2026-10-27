@@ -205,6 +205,80 @@ docstring and the project notes.
 - **Chose:** `[project.scripts] replay = "harness.replay:main"`, so
   `uv run replay <log>` works. `python -m harness.replay` also works.
 
+## Reconciliation workload (`src/harness/reconciliation.py`, `src/harness/reconcile_tools.py`)
+
+### Domain and tools are separate modules
+- **Chose:** `reconciliation.py` holds the data, answer key, CSV reading/writing
+  and `ReconciliationState`. `reconcile_tools.py` holds the pydantic argument
+  models, the prompts and the three tools, which are thin wrappers over the state.
+- **Why:** the Week 2 coarse `auto_reconcile` tool and the Step 7 grader can
+  reuse the domain code without the tools.
+
+### Money is `Decimal`
+- **Why:** float arithmetic on currency produces rounding errors, and the
+  agent's whole job is spotting small differences.
+
+### The data is generated from code, checked in, and tested for drift
+- **Chose:** `toy_case()` is the source of truth. `data/toy/*.csv` and
+  `answer_key.json` are committed, and a test fails if they stop matching the
+  generator.
+- **Why:** the repo shows what the agent sees, and the generator will make the
+  10 eval cases in Step 7.
+
+### `find_candidate_entries` returns near amounts too (resolves a notes question)
+- **Chose:** every ledger entry within the date window, ranked by amount
+  closeness and then date, each marked "amount matches" or "amount differs by X".
+- **Rejected:** exact-amount matches only.
+- **Why:** with exact-only the agent could never discover the 25.00 vs 52.00
+  mismatch; it would just see "no candidates".
+- **Also shown:** whether a candidate is already matched to another bank line.
+  That is how the agent finds the duplicate: the repeat charge's only exact
+  candidate is already taken.
+
+### `ToolError` carries messages to the model verbatim
+- **Chose:** `tools.ToolError`. `run()` returns its message unchanged with
+  `is_error=True`. Any other exception is still wrapped with the tool name and
+  exception type.
+- **Rejected:** letting handlers raise `ValueError`.
+- **Why:** "Tool 'propose_match' failed: ValueError: ..." buries the message.
+  The notes' goal is "No bank line B99. Valid IDs: B1-B6".
+
+### Error messages name the problem and the valid options (resolves a notes question)
+- Unknown IDs list every valid ID. A status that needs an entry says to use
+  `no_match` if nothing fits. Matching an entry that is already taken names the
+  bank line that owns it and suggests `duplicate_suspected`.
+
+### One `propose_match` with five statuses (resolves a notes question)
+- **Chose:** one tool; the status is an enum whose meanings are in the schema.
+- **Rejected:** a separate tool per outcome.
+- **Why:** one place to validate and one record shape. **Untested hypothesis:**
+  this was decided before any real run. The Week 2 comparison against a coarse
+  `auto_reconcile` tool, and the first logs, may overturn it.
+
+### An entry can be matched once; a duplicate does not claim it
+- **Chose:** `matched`, `timing_difference` and `amount_mismatch` claim their
+  ledger entry; `duplicate_suspected` does not, and its `entry_id` is optional.
+- **Why:** two bank lines matched to one entry is the error being hunted. The
+  answer key leaves the duplicate's entry unspecified.
+
+### Re-proposing replaces the earlier proposal
+- **Chose:** the reply says "Replaced the earlier proposal for B1 (was no_match)."
+- **Why:** lets the agent correct itself. Making this idempotent and
+  checkpointed is Week 2.
+
+### `entry_id` defaults to null and `note` is required
+- **Chose:** omitting `entry_id` means null (the notes' model had it required).
+  `note` must be non-empty.
+- **Why:** the model should not have to write `null` for a no-match, and a
+  required note puts the agent's reasoning in the log.
+
+### The system prompt defines the statuses but not the planted errors
+- **Why:** it is generic guidance the agent would get on any case. Hints about
+  this case's specific problems would make the eval meaningless.
+
+### `run_reconcile.py` prints a side-by-side with the answer key
+- **Why:** to read a first run quickly. Step 7 replaces it with a real grader.
+
 ## Project
 
 ### Python 3.12
@@ -230,11 +304,13 @@ docstring and the project notes.
   "only `model.py`" rule. Switch it to `AnthropicClient`.
 - **Module name.** The notes plan `client.py`; the module is `model.py`.
   Rename it or update the notes.
-- **Branches.** PR #1 merged into `step-1`. `main` was fast-forwarded to the
-  mypy fix, and `step-1` is still GitHub's default branch. Decide where
-  feature branches start from, and change the default branch in GitHub's
-  settings.
-- **From the notes, still undecided:** whether `find_candidate_entries` returns
-  only exact amount matches or near ones too; what error messages say in the
-  reconciliation tools; one `propose_match` with five statuses versus a tool
-  per outcome; a coarse `auto_reconcile` tool as a Week 2 comparison.
+- **Stacked PRs.** `main` is the default branch. Each step lives on its own
+  branch stacked on the previous one (`claude/optimistic-fermat-1t62q8` for
+  Steps 3 and the Python bump, `step-4-trajectory-logging`,
+  `step-5-reconciliation-workload`). As each PR merges, retarget the next to
+  `main`; after a squash merge, rebase the next branch first.
+- **The first real run has not happened.** Everything so far is tested against
+  `FakeClient`. `scripts/run_reconcile.py` is ready, and the first log will show
+  how the tool descriptions and error messages actually land.
+- **Coarse tool comparison (Week 2).** Build an `auto_reconcile` tool next to
+  the three and compare.

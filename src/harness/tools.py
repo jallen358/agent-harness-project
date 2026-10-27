@@ -21,6 +21,16 @@ from pydantic import BaseModel, ValidationError
 _NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 Handler = Callable[[Any], str]
 
+
+class ToolError(Exception):
+    """Raised by a handler to tell the model what went wrong.
+
+    The message reaches the model exactly as written, so write it for the model:
+    say what was wrong and what the valid options are. Any other exception is
+    wrapped with the tool name and exception type instead.
+    """
+
+
 @dataclass
 class Tool:
     name: str
@@ -90,6 +100,9 @@ class ToolRegistry:
 
         try:
             return ToolResult(tool.handler(args))
+        except ToolError as exc:
+            # A problem the handler wants the model to read verbatim.
+            return ToolResult(str(exc), is_error=True)
         except Exception as exc:  # noqa: BLE001 - the loop must survive any tool bug
             return ToolResult(
                 f"Tool {name!r} failed: {type(exc).__name__}: {exc}",

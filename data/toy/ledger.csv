@@ -1,0 +1,6 @@
+entry_id,date,memo,amount
+L1,2025-03-01,Invoice 2201 Acme,5000.00
+L2,2025-03-02,Rent check 1041,-1200.00
+L3,2025-03-05,Office supplies Staples,-84.50
+L4,2025-04-02,Invoice 2208 Globex,3200.00
+L5,2025-03-09,Bank fee,-52.00

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from harness.tools import ToolRegistry
+from harness.tools import ToolError, ToolRegistry
 
 
 class EchoArgs(BaseModel):
@@ -93,3 +93,17 @@ def test_definitions_shape() -> None:
     assert schema["type"] == "object"
     assert set(schema["properties"]) == {"text", "times"}
     assert schema["required"] == ["text"]
+
+def test_tool_error_message_reaches_the_model_unchanged() -> None:
+    # A ToolError is the handler saying "tell the model exactly this", so no
+    # "Tool 'x' failed: ExceptionType:" wrapper around it.
+    registry = ToolRegistry()
+
+    @registry.register("lookup", "Look something up.", EchoArgs)
+    def lookup(args: EchoArgs) -> str:
+        raise ToolError("No item 'B99'. Valid IDs: B1, B2.")
+
+    result = registry.run("lookup", {"text": "B99"})
+
+    assert result.is_error
+    assert result.content == "No item 'B99'. Valid IDs: B1, B2."

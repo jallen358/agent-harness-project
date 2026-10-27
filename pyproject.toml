@@ -3,7 +3,7 @@ name = "agent-harness"
 version = "0.1.0"
 description = "A small harness for Anthropic Messages API tool-calling experiments."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.125.0",
     "pydantic>=2.13.5",

@@ -267,3 +267,44 @@ def test_on_event_reports_each_step_in_order() -> None:
     assert tool_event["content"] == "hi"
     assert tool_event["is_error"] is False
     assert events[-1]["stop_reason"] == "final_answer"
+
+
+def test_run_start_event_records_the_setup() -> None:
+    # The log has to say which tools and limits were in force, or a bad run can't be explained.
+    events: list[dict[str, Any]] = []
+    client = FakeClient([final_turn("done")])
+
+    run_agent(
+        "Do it.",
+        client,
+        build_demo_registry(),
+        RunConfig(max_steps=4, max_total_tokens=999, system_prompt="Be brief."),
+        on_event=events.append,
+    )
+
+    assert events[0] == {
+        "type": "run_start",
+        "task": "Do it.",
+        "system_prompt": "Be brief.",
+        "tool_names": ["echo"],
+        "max_steps": 4,
+        "max_total_tokens": 999,
+    }
+
+
+def test_run_end_event_records_the_outcome() -> None:
+    events: list[dict[str, Any]] = []
+    client = FakeClient(
+        [tool_use_turn(echo_call(), usage=Usage(10, 5)), final_turn("all done", usage=Usage(20, 4))]
+    )
+
+    run_agent("Go.", client, build_demo_registry(), on_event=events.append)
+
+    assert events[-1] == {
+        "type": "run_end",
+        "stop_reason": "final_answer",
+        "steps": 2,
+        "detail": None,
+        "final_text": "all done",
+        "usage": {"input_tokens": 30, "output_tokens": 9},
+    }

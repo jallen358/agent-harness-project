@@ -158,6 +158,53 @@ docstring and the project notes.
 ### Default `max_steps` is 10
 - **Why:** arbitrary. Revisit after the first real runs.
 
+## Trajectory log (`src/harness/trajectory.py`, `src/harness/replay.py`)
+
+### One JSON line per event (JSONL)
+- **Chose:** each event is one line in `runs/<timestamp>-<id>.jsonl`.
+- **Rejected:** one JSON document per run, written at the end.
+- **Why:** append-only, so a run that crashes still leaves everything up to its
+  last event, and the file can be searched with `grep`. A single document would
+  be lost with the run.
+
+### The log is complete; replay does the clipping
+- **Chose:** the file keeps full text and tool output. `replay` clips long text
+  to 200 characters unless `--full` is given.
+- **Why:** the notes warn against logging only the final answer. Shortening at
+  write time would destroy the detail needed to diagnose a bad run.
+- **Cost:** logs can be large, and they can contain task data (for this
+  project, bank and ledger lines). `runs/` is gitignored.
+
+### Every event is written to disk immediately
+- **Chose:** open, append and close on each event.
+- **Rejected:** keeping one file handle open for the whole run.
+- **Why:** nothing buffered is lost on a crash, and there is no handle to close
+  or leak. Volume is a few events per step, so the cost is negligible.
+
+### The logger adds the timestamp, not the loop
+- **Why:** the loop stays deterministic and testable. The clock is injectable.
+
+### A log failure stops the run
+- **Chose:** an event that cannot be serialized raises.
+- **Rejected:** `default=str`, or swallowing the error.
+- **Why:** a log with silent holes is worse than a run that stops loudly.
+
+### `run_start` and `run_end` carry the setup and the outcome
+- **Chose:** `run_start` records the system prompt, tool names and limits.
+  `run_end` records `final_text` and total usage.
+- **Why:** the notes' question is "why did this run go wrong?" That needs to know
+  which tools and limits were in force, and how the run ended.
+
+### Replay shows what it does not understand
+- **Chose:** unknown event types are printed as `??`, and a log with no
+  `run_end` is flagged as crashed or killed.
+- **Why:** silently skipping events would hide exactly the cases replay exists
+  for.
+
+### `replay` is a console script
+- **Chose:** `[project.scripts] replay = "harness.replay:main"`, so
+  `uv run replay <log>` works. `python -m harness.replay` also works.
+
 ## Project
 
 ### Python 3.12
@@ -172,6 +219,10 @@ docstring and the project notes.
 
 ## Open
 
+- **API errors leave a log without `run_end`.** The loop does not catch
+  exceptions from `client.step`, so a network or API failure ends the run with
+  no closing event. Replay flags this, but the cause is not logged. Candidate
+  for Step 5: catch it in the loop, emit a `run_error` event, then re-raise.
 - **Thinking blocks.** Newer models may return `thinking` blocks by default,
   and `turn_from_response` would raise on them. Options: ignore them, or turn
   thinking off in the request. Unconfirmed until the first real run.

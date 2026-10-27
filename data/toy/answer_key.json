@@ -1,0 +1,26 @@
+{
+  "B1": {
+    "status": "matched",
+    "entry_id": "L1"
+  },
+  "B2": {
+    "status": "matched",
+    "entry_id": "L2"
+  },
+  "B3": {
+    "status": "matched",
+    "entry_id": "L3"
+  },
+  "B4": {
+    "status": "duplicate_suspected",
+    "entry_id": null
+  },
+  "B5": {
+    "status": "amount_mismatch",
+    "entry_id": "L5"
+  },
+  "B6": {
+    "status": "timing_difference",
+    "entry_id": "L4"
+  }
+}

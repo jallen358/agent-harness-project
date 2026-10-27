@@ -20,3 +20,20 @@ back as a step-by-step account with:
 uv run replay runs/<file>.jsonl          # long text is clipped
 uv run replay runs/<file>.jsonl --full   # show everything
 ```
+
+## The reconciliation workload
+
+The practice task is bank reconciliation: match a bank statement to the
+ledger and explain every difference. The toy case in `data/toy/` has six bank
+lines and five ledger entries with a duplicate charge, a timing difference and
+an amount mismatch planted in it (`answer_key.json` holds the right answers).
+
+```
+uv run python scripts/generate_data.py                              # rewrite data/toy from code
+uv run --env-file .env python scripts/run_reconcile.py              # run the agent on it
+uv run replay runs/<file>.jsonl                                     # read what it did
+```
+
+`run_reconcile.py` needs `ANTHROPIC_API_KEY` and `HARNESS_MODEL` in `.env`
+(see `.env.example`). It prints the agent's summary and compares its proposals
+with the answer key. The tests never need a key.
